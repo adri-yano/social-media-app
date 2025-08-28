@@ -2,8 +2,10 @@
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { BASE_URL } from "../../config";
+ // import the base URL
 
-// Form Validation 
+// Form Validation Schema
 const signupSchema = z.object({
   username: z
     .string()
@@ -20,14 +22,36 @@ export default function SignupPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
   });
 
-  const onSubmit = (data: SignupFormData) => {
-    console.log("Signup Data:", data);
-    alert("Signup successful");
+  const onSubmit = async (data: SignupFormData) => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: data.email,
+          username: data.username,
+          password: data.password,
+          name: data.fullName,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        alert("Signup successful!");
+        console.log("User registered:", result);
+      } else {
+        alert(result.message || "Signup failed. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error during signup:", error);
+      alert("Something went wrong. Please try again later.");
+    }
   };
 
   return (
@@ -37,7 +61,6 @@ export default function SignupPage() {
           Create Account
         </h2>
         <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-
           {/* Username */}
           <div>
             <input
@@ -92,9 +115,10 @@ export default function SignupPage() {
 
           <button
             type="submit"
+            disabled={isSubmitting}
             className="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition"
           >
-            Sign Up
+            {isSubmitting ? "Signing up..." : "Sign Up"}
           </button>
         </form>
 
