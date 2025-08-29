@@ -1,20 +1,25 @@
 "use client";
+
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AiOutlineEye, AiOutlineEyeInvisible } from "react-icons/ai";
 import { BASE_URL } from "../../config";
- // import the base URL
 
+// Validation schema
 const loginSchema = z.object({
-  identifier: z.string().min(3, "Email or Username is required"),
+  emailOrUsername: z.string().min(3, "Email or Username is required"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
+type ApiSuccess = { user: any; token: string };
+type ApiError = { error?: string };
 
 export default function LoginPage() {
+  const router = useRouter();
   const {
     register,
     handleSubmit,
@@ -24,30 +29,41 @@ export default function LoginPage() {
   });
 
   const [showPassword, setShowPassword] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const onSubmit = async (data: LoginFormData) => {
+    setServerError(null);
     try {
       const response = await fetch(`${BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          identifier: data.identifier,
+          emailOrUsername: data.emailOrUsername,
           password: data.password,
         }),
       });
 
-      const result = await response.json();
+      // Safely parse JSON (avoid crashing on empty/non-JSON)
+      const text = await response.text();
+      const result: ApiSuccess & ApiError = text ? JSON.parse(text) : ({} as any);
 
       if (response.ok) {
-        alert("Login successful!");
+        // Expecting { user, token }
+        if (!result?.token) {
+          setServerError("Login succeeded but token is missing.");
+          return;
+        }
         localStorage.setItem("token", result.token);
-        window.location.href = "/home";
+        if (result.user) localStorage.setItem("user", JSON.stringify(result.user));
+        // Optional toast/alert
+        // alert("Login successful! 🎉");
+        router.push("/home");
       } else {
-        alert(result.message || "Invalid email/username or password");
+        setServerError(result?.error || "Invalid email/username or password.");
       }
-    } catch (error) {
-      console.error("Login error:", error);
-      alert("Something went wrong. Please try again later.");
+    } catch (err) {
+      console.error("Login error:", err);
+      setServerError("Something went wrong. Please try again later.");
     }
   };
 
@@ -57,22 +73,26 @@ export default function LoginPage() {
         <h2 className="text-3xl font-bold mb-6 text-center text-gray-900">
           Welcome Back
         </h2>
+
+        {serverError && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700 text-sm">
+            {serverError}
+          </div>
+        )}
+
         <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-          
-          {/* Email or Username */}
           <div>
             <input
               type="text"
               placeholder="Email or Username"
-              {...register("identifier")}
+              {...register("emailOrUsername")}
               className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900"
             />
-            {errors.identifier && (
-              <p className="text-red-600 text-sm mt-1">{errors.identifier.message}</p>
+            {errors.emailOrUsername && (
+              <p className="text-red-600 text-sm mt-1">{errors.emailOrUsername.message}</p>
             )}
           </div>
 
-          {/* Password with Icon Toggle */}
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
@@ -91,18 +111,18 @@ export default function LoginPage() {
               <p className="text-red-600 text-sm mt-1">{errors.password.message}</p>
             )}
           </div>
-          
+
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition"
+            className="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition disabled:opacity-60"
           >
             {isSubmitting ? "Logging in..." : "Log In"}
           </button>
         </form>
 
         <p className="mt-5 text-center text-gray-700">
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <a href="/signup" className="text-purple-600 font-medium hover:underline">
             Sign up
           </a>

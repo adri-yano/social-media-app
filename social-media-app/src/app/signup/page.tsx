@@ -28,31 +28,32 @@ export default function SignupPage() {
   });
 
   const onSubmit = async (data: SignupFormData) => {
-    try {
-      const response = await fetch(`${BASE_URL}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: data.email,
-          username: data.username,
-          password: data.password,
-          name: data.fullName,
-        }),
-      });
+  try {
+    const response = await fetch(`${BASE_URL}/api/auth/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: data.email,
+        username: data.username,
+        password: data.password,
+        name: data.fullName,
+      }),
+    });
 
-      const result = await response.json();
+    const result = await response.json();
 
-      if (response.ok) {
-        alert("Signup successful!");
-        console.log("User registered:", result);
-      } else {
-        alert(result.message || "Signup failed. Please try again.");
-      }
-    } catch (error) {
-      console.error("Error during signup:", error);
-      alert("Something went wrong. Please try again later.");
+    if (response.ok) {
+      alert("Signup successful!");
+      console.log("User registered:", result.user);
+    } else {
+      alert(result.error || "Signup failed. Please try again."); // 🔥 use `error` (backend returns this)
     }
-  };
+  } catch (error) {
+    console.error("Error during signup:", error);
+    alert("Something went wrong. Please try again later.");
+  }
+};
+
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-100 via-white to-purple-100 px-4">

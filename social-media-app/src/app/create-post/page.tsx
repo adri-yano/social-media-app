@@ -2,17 +2,18 @@
 
 import { useState, useRef } from "react";
 import { AiOutlineCamera, AiOutlineFileImage, AiOutlineClose } from "react-icons/ai";
-import { BASE_URL } from "../../config"; // your backend base URL
-
-const parseHashtags = (text: string) =>
-  text.split(" ").filter((word) => word.startsWith("#"));
+import { BASE_URL } from "../../config";
 
 export default function CreatePostPage() {
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const parseHashtags = (text: string) =>
+    text.split(" ").filter((word) => word.startsWith("#"));
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) addImages(Array.from(e.target.files));
@@ -46,45 +47,56 @@ export default function CreatePostPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (images.length === 0) return alert("Please select at least one image.");
+
+    if (!caption.trim()) return alert("Content is required.");
+    const token = localStorage.getItem("token");
+    if (!token) return alert("You must be logged in to create a post.");
 
     try {
-      // Step 1: Upload images to a free image host (example uses imgbb)
-      const uploadedUrls: string[] = [];
-      for (let img of images) {
+      setLoading(true);
+
+      let imageUrl: string | null = null;
+
+      // If there’s an image, upload it (example: imgbb)
+      if (images[0]) {
         const formData = new FormData();
-        formData.append("image", img);
-        const res = await fetch("https://api.imgbb.com/1/upload?key=YOUR_IMGBB_API_KEY", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        uploadedUrls.push(data.data.url);
+        formData.append("image", images[0]);
+
+        const uploadRes = await fetch(
+          `https://api.imgbb.com/1/upload?key=YOUR_IMGBB_API_KEY`,
+          { method: "POST", body: formData }
+        );
+        const uploadData = await uploadRes.json();
+        imageUrl = uploadData.data.url;
       }
 
-      // Step 2: Send to your backend (one post per image, or array depending on backend)
-      for (let url of uploadedUrls) {
-        const response = await fetch(`${BASE_URL}/api/posts`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            image: url,
-            caption,
-            tags,
-          }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.message || "Post creation failed");
-      }
+      // Send post to backend
+      const response = await fetch(`${BASE_URL}/api/posts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          content: caption,
+          image: imageUrl || null,
+        }),
+      });
 
-      alert("Post(s) created successfully!");
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || "Post creation failed");
+
+      alert("Post created successfully!");
       setCaption("");
       setImages([]);
       setPreviews([]);
       setTags([]);
-    } catch (error) {
-      console.error("Error creating post:", error);
-      alert("Something went wrong. Please try again later.");
+    } catch (err: any) {
+      console.error("Error creating post:", err);
+      alert(err.message || "Something went wrong. Please try again later.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -94,7 +106,6 @@ export default function CreatePostPage() {
         <h2 className="text-3xl font-bold mb-6 text-center text-gray-900">Create a Post</h2>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
-          {/* Drag & Drop */}
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -116,12 +127,15 @@ export default function CreatePostPage() {
             />
           </div>
 
-          {/* Previews */}
           {previews.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {previews.map((src, idx) => (
                 <div key={idx} className="relative">
-                  <img src={src} alt={`preview-${idx}`} className="w-20 h-20 object-cover rounded-lg border border-gray-300" />
+                  <img
+                    src={src}
+                    alt={`preview-${idx}`}
+                    className="w-20 h-20 object-cover rounded-lg border border-gray-300"
+                  />
                   <button
                     type="button"
                     className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition"
@@ -134,7 +148,6 @@ export default function CreatePostPage() {
             </div>
           )}
 
-          {/* Caption + Hashtags */}
           <div>
             <textarea
               placeholder="Write a caption... (#hashtags, @tags)"
@@ -143,10 +156,18 @@ export default function CreatePostPage() {
               className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 resize-none"
               rows={3}
             ></textarea>
-            {tags.length > 0 && <p className="text-gray-600 mt-2 text-sm">Hashtags: {tags.join(", ")}</p>}
+            {tags.length > 0 && (
+              <p className="text-gray-600 mt-2 text-sm">Hashtags: {tags.join(", ")}</p>
+            )}
           </div>
 
-          <button type="submit" className="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition">Post</button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition disabled:opacity-60"
+          >
+            {loading ? "Posting..." : "Post"}
+          </button>
         </form>
       </div>
     </div>
